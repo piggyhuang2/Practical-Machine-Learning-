@@ -1,0 +1,84 @@
+---
+title: "Practical_Machine_Learning_Course_Project"
+author: "Lily Huang"
+date: "Sunday, June 21, 2015"
+output: html_document
+---
+## Datasets
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Prediction Strategy:
+Use all variables starting with "max" to predict class
+
+## Load R packages:
+```{r}
+library(caret)
+library(knitr)
+library(randomForest)
+library(data.table)
+```
+## Data Preparation:
+```{r}
+# Read training and testing datasets
+# Delete first 7 columns in both training and test datasets
+training.file <- 'pml-training.csv'
+test.file     <- 'pml-testing.csv'
+read.pml       <- function(x) { read.csv(x, na.strings = c("", "NA", "#DIV/0!") ) }
+training       <- read.pml(training.file)
+test           <- read.pml(test.file)
+training       <- training[,-c(1:7)]
+test           <- test[,-c(1:7)]
+# Divide training dataset into 50% training and 50% testing
+library(caret)
+trainingIndex  <- createDataPartition(training$classe, p=.50, list=FALSE)
+training.train <- training[ trainingIndex,]
+training.test  <- training[-trainingIndex,]
+# Next we create a function to remove entire NA columns, and apply it to both data frames. Lastly we create a function that removes any variables with missing NAs and apply this to the training dataset
+rm.na.cols     <- function(x) { x[ , colSums( is.na(x) ) < nrow(x) ] }
+training.train <- rm.na.cols(training.train)
+training.test  <- rm.na.cols(training.test)
+complete       <- function(x) {x[,sapply(x, function(y) !any(is.na(y)))] }
+incompl        <- function(x) {names( x[,sapply(x, function(y) any(is.na(y)))] ) }
+trtr.na.var    <- incompl(training.train)
+trts.na.var    <- incompl(training.test)
+training.train <- complete(training.train)
+training.test  <- complete(training.test)
+```
+
+## PCA Pre-processing 
+```{r}
+preProc<-preProcess(training.train[,-53],method="pca")
+trainPCA<-predict(preProc,training.train[,-53])
+trainPCA$classe=training.train
+testPCA<-predict(preProc,training.test[,-53])
+testPCA$classe=training.test$classe
+```
+
+## Model training
+```{r}
+# Training with full data
+fitFullRF<-randomForest(classe ~.,data = training.train,importance = TRUE)
+predictFullRF<-predict(fitFullRF,training.test)
+fullCM<-confusionMatrix(predictFullRF,training.test$classe)
+fullCM$overall
+
+```
+
+## Training Error
+```{r}
+# Training Error Vs Number of trees
+plot(fitFullRF,main="Error vs # of trees")
+```
+
+## Apply the random forest model to test dataset.
+```{r}
+# Random Forest Model: fitFullRF<-randomForest(classe ~.,data = training.train,importance = TRUE)
+Answer<-predict(fitFullRF,test)
+Answer
+```
+
+
